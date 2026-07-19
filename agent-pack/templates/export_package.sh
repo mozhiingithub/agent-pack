@@ -38,7 +38,8 @@ grep -q "部署影响" "$SPEC_FILE"               || die "spec 缺少「部署�
 BASE="$(git merge-base "origin/$MAIN_BRANCH" "$BRANCH")"
 TREE="$(git rev-parse "$BRANCH^{tree}")"
 mkdir -p "$STATE_DIR" "$OUT_DIR"
-SEQ_FILE="$STATE_DIR/seq-$BRANCH"; PREV_FILE="$STATE_DIR/prev-$BRANCH"
+SAFE_BRANCH="${BRANCH//\//-}"   # 分支名含 /，文件名/路径一律用转义后的安全名
+SEQ_FILE="$STATE_DIR/seq-$SAFE_BRANCH"; PREV_FILE="$STATE_DIR/prev-$SAFE_BRANCH"
 SEQ=$(( $(cat "$SEQ_FILE" 2>/dev/null || echo 0) + 1 ))
 PREV="$(cat "$PREV_FILE" 2>/dev/null || echo "")"
 if [ "$TYPE" = "close" ]; then MSG_SRC="origin/$MAIN_BRANCH"; else MSG_SRC="$BRANCH"; fi
@@ -51,7 +52,7 @@ if [ "$TYPE" = "close" ]; then
 fi
 
 # ================= 固定区 5：组包（保护路径硬阻断）=================
-PKG="$OUT_DIR/sync-$BRANCH-$SEQ"
+PKG="$OUT_DIR/sync-$SAFE_BRANCH-$SEQ"
 rm -rf "$PKG"; mkdir -p "$PKG/payload"
 if git -c core.quotePath=false diff --name-only "$BASE..$BRANCH" | grep -q "$(printf '\t')"; then
   die "文件名含制表符，TSV 清单不支持"
