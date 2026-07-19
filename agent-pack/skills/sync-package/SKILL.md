@@ -41,7 +41,7 @@ sync-<分支名>-<序号>/
 ├── message.txt      # commit message（close 包用）
 ├── configImpact.txt # 可选：部署影响待办，无则不生成
 ├── files.txt        # TSV 清单：action<TAB>blob<TAB>path，按 path 排序；delete 的 blob 为空
-├── payload/         # 优先 git format-patch 序列；规定只允许普通文件时为变更文件全集
+├── payload/         # 自上一包以来的增量 format-patch 序列（首包为全量）；规定只允许普通文件时为变更文件全集
 └── import.sh        # 内网入口脚本（随模板下发，勿手改）
 ```
 
