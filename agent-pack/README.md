@@ -58,7 +58,7 @@ bash agent-pack/templates/bootstrap.sh <项目仓库根目录>
 
 ## 借鉴自 superpowers 的模式
 
-以下工艺借鉴自 chargeX_fault_platform 的 superpowers 技能库（只借鉴文档工艺，其"同会话派 subagent、连续执行不问人"的执行拓扑与双工机制冲突，未采用）：
+采纳的 6 个技能已**原样 vendor** 到 `skills/superpowers/`（上游副本，含出处与未采纳清单说明，见该目录 README），本包根级 skills 是其本地适配版，两者配合：
 
 - spec 自审四项（占位符/矛盾/歧义/范围）——见 `skills/feat-workflow`；
 - exec-plan checkbox 任务拆分——见 exec-plan 模板；
