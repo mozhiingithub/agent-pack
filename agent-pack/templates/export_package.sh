@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# export_package.sh — 同步包生成脚本（参考骨架 v2，无 jq 依赖，Git Bash 兼容）
+# export_package.sh — 同步包生成脚本（参考骨架 v3，无 jq 依赖，Git Bash 兼容）
 # 用法: tools/export_package.sh <branch> <sync|close>
 #
 # 结构约定：【固定区】流程顺序、校验点、git 命令、退出码、日志格式 —— 不得修改；
 #          【可变区】项目路径、提取细节 —— 可按项目实现，接口与输出格式不变。
+# v3 修订：分支名含 / 转义（SAFE_BRANCH）；保护路径检查统一 core.quotePath=false
+#          （非 ASCII 文件名不可绕过）；ls-remote 走 safe-git.sh（重试/代理）；
+#          configImpact 归一化（"无"视为无影响）。
 
 set -euo pipefail
 
@@ -11,6 +14,7 @@ set -euo pipefail
 BRANCH="${1:?用法: export_package.sh <branch> <sync|close> (exit 2)}"
 TYPE="${2:?类型必须是 sync 或 close (exit 2)}"
 { [ "$TYPE" = "sync" ] || [ "$TYPE" = "close" ]; } || { echo "类型必须是 sync 或 close" >&2; exit 2; }
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 log() { printf '[export] %s %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { echo "[export] ERROR: $*" >&2; exit 1; }
 
@@ -27,7 +31,8 @@ IMPORT_TEMPLATE="tools/templates/import.sh"
 [ -z "$(git status --porcelain)" ]            || die "工作区不干净"
 git rev-parse --verify "$BRANCH" >/dev/null 2>&1 || die "分支不存在: $BRANCH"
 TIP="$(git rev-parse "$BRANCH")"
-REMOTE_TIP="$(git ls-remote origin "$BRANCH" | cut -f1)"
+REMOTE_TIP="$("$SCRIPT_DIR/safe-git.sh" ls-remote origin "$BRANCH" | cut -f1)" \
+                                              || die "远端 tip 查询失败（网络问题，稍后重试）"
 [ "$TIP" = "$REMOTE_TIP" ]                    || die "分支 tip 未推送或与远端不一致"
 [ -f "$CHECKS_OK" ]                           || die "缺少本地检查通过标记 $CHECKS_OK"
 [ -n "$(find "$CHECKS_OK" -mtime -1 2>/dev/null)" ] || die "检查标记已过期（>24h），先重跑本地检查"
@@ -52,12 +57,15 @@ if [ "$TYPE" = "close" ]; then
 fi
 
 # ================= 固定区 5：组包（保护路径硬阻断）=================
+# 所有产出路径的 git 命令统一 core.quotePath=false：
+# 默认开启时非 ASCII 路径被转义成 "\344\270\255..."，^ 锚点匹配失效，硬阻断可被绕过
 PKG="$OUT_DIR/sync-$SAFE_BRANCH-$SEQ"
 rm -rf "$PKG"; mkdir -p "$PKG/payload"
-if git -c core.quotePath=false diff --name-only "$BASE..$BRANCH" | grep -q "$(printf '\t')"; then
+DIFF_FILES="$(git -c core.quotePath=false diff --name-only "$BASE..$BRANCH")"
+if printf '%s\n' "$DIFF_FILES" | grep -q "$(printf '\t')"; then
   die "文件名含制表符，TSV 清单不支持"
 fi
-if git diff --name-only "$BASE..$BRANCH" | grep -q "^$PROTECTED_PATH"; then
+if printf '%s\n' "$DIFF_FILES" | grep -q "^$PROTECTED_PATH"; then
   die "变更包含保护路径 $PROTECTED_PATH（无豁免）"
 fi
 if [ "$TYPE" = "sync" ]; then
@@ -80,8 +88,10 @@ fi
 # message.txt：commit message
 git log -1 --format=%B "$MSG_SRC" > "$PKG/message.txt"
 # files.txt：action<TAB>blob<TAB>path，按 path 排序；delete 的 blob 为空
+# 注意：name-status 输出是 status+path 两列，-k2,2 即按 path 排序；blob 在循环内才计算
 # 用 git 对象 hash（blob），不用磁盘文件 sha256——免疫 Windows CRLF 差异
-git diff --name-status "$BASE..$BRANCH" | LC_ALL=C sort -k2 \
+git -c core.quotePath=false diff --name-status "$BASE..$BRANCH" \
+  | LC_ALL=C sort -t"$(printf '\t')" -k2,2 \
   | while IFS=$'\t' read -r st p; do
       case "$st" in
         A) a=add;    b="$(git rev-parse "$BRANCH:$p")" ;;
@@ -90,8 +100,10 @@ git diff --name-status "$BASE..$BRANCH" | LC_ALL=C sort -k2 \
       esac
       printf '%s\t%s\t%s\n' "$a" "$b" "$p"
     done > "$PKG/files.txt"
-# configImpact.txt：spec「部署影响」一节原文；为空则不生成该文件
+# configImpact.txt：spec「部署影响」一节原文；"无"/空白视为无影响，不生成该文件
 IMPACT="$(awk '/^#+.*部署影响/{f=1;next} f&&/^#/{exit} f' "$SPEC_FILE")"
+IMPACT_KEY="$(printf '%s' "$IMPACT" | tr -d '[:space:]')"
+case "$IMPACT_KEY" in "" | 无 | 无。 | none | None | NONE ) IMPACT="" ;; esac
 if [ -n "$IMPACT" ]; then printf '%s\n' "$IMPACT" > "$PKG/configImpact.txt"; fi
 cp "$IMPORT_TEMPLATE" "$PKG/import.sh"; chmod +x "$PKG/import.sh"
 

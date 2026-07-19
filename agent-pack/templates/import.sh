@@ -61,6 +61,12 @@ PREV_STATE_HASH="${PREV_STATE_HASH:-}"
 
 cd "$REPO" || die "仓库不存在: $REPO"
 
+# git am 需要提交者身份；缺失时给出明确指引，而不是中途报 "Committer identity unknown"
+git var GIT_COMMITTER_IDENT >/dev/null 2>&1 || die "未配置 git 提交者身份。请先执行：
+  git config --global user.name \"你的名字\"
+  git config --global user.email \"你的邮箱\"
+然后重新执行本包（幂等，无副作用）。"
+
 # ================= 固定区 3：同步远端（内置重试） =================
 net fetch origin
 
