@@ -56,7 +56,23 @@ bash agent-pack/templates/bootstrap.sh <项目仓库根目录>
 
 其他项目若结构不同，硬性要求只有内容层面四条：分支与 spec 一一对应且映射可机械判定；含"部署影响"节与状态表达；接口变化有固定记录处；经人确认后才动工。
 
+## 借鉴自 superpowers 的模式
+
+以下工艺借鉴自 chargeX_fault_platform 的 superpowers 技能库（只借鉴文档工艺，其"同会话派 subagent、连续执行不问人"的执行拓扑与双工机制冲突，未采用）：
+
+- spec 自审四项（占位符/矛盾/歧义/范围）——见 `skills/feat-workflow`；
+- exec-plan checkbox 任务拆分——见 exec-plan 模板；
+- 批量提问（人异步在线，不逐条追问）——见 `skills/feat-workflow`；
+- 系统化调试纪律（未定位根因不动手、两轮失败停手质疑方向、先红后绿）——见 `skills/fix-workflow`；
+- 完成声明的证据门——对应铁律 3（实测通过 + diff 为空）；
+- `docs/PLANS.md` 计划索引——开工引导必读；
+- file handoff：同步包本质即跨网闸的文件交接，与其 task-brief/review-package 思想同构。
+
+双工协作内核（分支纪律、迭代验证环、内外网同步包、人对写操作确认）不因借鉴而改变。
+
 ## 技能清单
+
+双工协作内核（分支纪律、迭代验证环、内外网同步包、人对写操作确认）不因借鉴而改变。
 
 | 技能 | 触发场景 |
 | --- | --- |
