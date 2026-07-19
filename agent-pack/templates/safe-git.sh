@@ -16,6 +16,14 @@ OUTBOX="$STATE_DIR/outbox"
 BACKOFFS=(5 15 45 120 300)
 export SAFE_GIT_WRAPPER=1
 
+# 固定区：代理支持（人指定，存于 .sync-state/proxy，一行 URL；不存在则直连）
+if [ -f "$STATE_DIR/proxy" ]; then
+  PROXY="$(head -n1 "$STATE_DIR/proxy" | tr -d '[:space:]')"
+  if [ -n "$PROXY" ]; then
+    export http_proxy="$PROXY" https_proxy="$PROXY" all_proxy="$PROXY"
+  fi
+fi
+
 log() { printf '[safe-git] %s %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 
 is_permanent() { # 永久错误：不重试
@@ -33,6 +41,12 @@ retry() {
     sleep "${BACKOFFS[$i]}"
   done
   out="$(run_once "$@")" && { [ -n "$out" ] && echo "$out"; return 0; }
+  # 代理兜底：配置了代理且全部失败 → 摘掉代理直连试一次（代理是临时的，可能已失效）
+  if [ -n "${http_proxy:-}" ]; then
+    log "代理疑似失效，尝试直连兜底…"
+    unset http_proxy https_proxy all_proxy
+    out="$(run_once "$@")" && { [ -n "$out" ] && echo "$out"; log "已直连成功。如代理持续失效，请删除 .sync-state/proxy"; return 0; }
+  fi
   log "最终失败：$out"; return 1
 }
 

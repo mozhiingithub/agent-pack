@@ -59,7 +59,8 @@
 
 **网络故障**
 
-- 不用做任何事（脚本自动重试、挂起）；恢复后对 AI 说"**网络恢复了，继续**"。
+- 不用做任何事（脚本自动重试、挂起）；恢复后对 AI 说"**网络恢复了，继续**"；
+- 公司提供代理时：对 AI 说"**网络走代理 http://ip:port，记到 .sync-state/proxy，探活确认**"；要取消说"**取消代理**"。该配置只对 git 命令生效（等效逐条命令加前缀），不是全局代理，不影响其他程序联网；代理失效时脚本会自动直连兜底并提示取消。
 
 **import.sh 执行失败**
 
@@ -189,5 +190,6 @@ AI 自动按 network-safe-git 处理，人基本无需操作：
 | 合并收尾/发布 | "按 merge-and-close 收尾，先汇报等我确认" | merge-and-close |
 | 重构 | "按 refactor-guardrails 执行，窗口已公告" | refactor-guardrails |
 | 网络恢复 | "网络恢复了，继续" | network-safe-git |
+| 使用代理 | "网络走代理 http://…，记到 .sync-state/proxy" | network-safe-git |
 
 分工一句话：人做决策和搬运，AI 做开发和操作，脚本做重复和校验。
