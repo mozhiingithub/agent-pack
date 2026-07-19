@@ -110,11 +110,15 @@ case "$TYPE" in
     if [ -n "$OLD_REF" ]; then
       [ "$(git rev-parse "$BRANCH^{tree}")" = "$PREV_STATE_HASH" ] \
         || die "状态不连续：分支内容与本包上一状态不符（可能漏包/乱序，请按序号连续执行）"
-      git worktree add "$WT" "$BRANCH" >/dev/null 2>&1
+      git worktree add "$WT" "$BRANCH"
+      [ "$( cd "$WT" && git branch --show-current )" = "$BRANCH" ] \
+        || die "工作区未落在预期分支 $BRANCH，已中止（未做任何变更）"
     else
       git cat-file -e "$BASE_COMMIT" 2>/dev/null \
         || die "base 缺失：main 同步落后，请先执行 main 的同步包"
-      git worktree add "$WT" -b "$BRANCH" "$BASE_COMMIT" >/dev/null 2>&1
+      git worktree add "$WT" -b "$BRANCH" "$BASE_COMMIT"
+      [ "$( cd "$WT" && git branch --show-current )" = "$BRANCH" ] \
+        || die "新建工作区未落在预期分支 $BRANCH，已中止（未做任何变更）"
     fi
     ( cd "$WT" && git am "$PKG_DIR"/payload/*.patch )
     # 校验（全部 git 对象级，CRLF/跨机免疫）：tree + 逐文件 blob
@@ -137,7 +141,9 @@ case "$TYPE" in
     [ "$REMOTE_TIP" = "$NEW_TIP" ] || die "远端确认失败：Gitee 上 $BRANCH 与本地推送结果不一致"
     ;;
   close)
-    git worktree add "$WT" "$MAIN_BRANCH" >/dev/null 2>&1
+    git worktree add "$WT" "$MAIN_BRANCH"
+    [ "$( cd "$WT" && git branch --show-current )" = "$MAIN_BRANCH" ] \
+      || die "工作区未落在预期分支 $MAIN_BRANCH，已中止（未做任何变更）"
     ( cd "$WT" && git merge --squash "$BRANCH" && git commit -F "$PKG_DIR/message.txt" )
     NEW_SHA="$( cd "$WT" && git rev-parse HEAD )"
     # 对账：内网 main 顶层排除保护目录后的 tree 必须等于外网 main 的 TREE_HASH
