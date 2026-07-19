@@ -67,8 +67,8 @@ AI 维护或下发 import.sh 模板时，必须保证以下行为，缺一即不
 | branch | `BRANCH` | 分支名 |
 | seq | `SEQ` | 脚本自增，**AI 不得读写状态文件** |
 | baseCommit | `BASE_COMMIT` | `git merge-base`，与 main 的分叉点 |
-| prevStateHash | `PREV_STATE_HASH` | 上一包的 COMMIT_HASH，空 = 首包；防漏包乱序 |
-| commitHash | `COMMIT_HASH` | 分支 tip |
+| prevStateHash | `PREV_STATE_HASH` | 上一包的 TREE_HASH（commit hash 因 committer 被 git am 改写而跨机不可比，tree 才可比），空 = 首包；防漏包乱序 |
+| commitHash | `COMMIT_HASH` | 外网分支 tip（仅记录与展示，不参与跨机一致性校验） |
 | treeHash | `TREE_HASH` | `git rev-parse <分支>^{tree}`，最终树校验值 |
 | message | `message.txt` | sync：tip commit message；close：squash 合入 main 的 message |
 | files | `files.txt` | `action<TAB>blob<TAB>path`，按 path 排序；blob 为 git 对象 hash |

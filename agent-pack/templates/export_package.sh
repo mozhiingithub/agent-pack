@@ -119,7 +119,9 @@ else
   tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf "$PKG.tar" -C "$PKG" .
   PKG_ARC="$PKG.tar"
 fi
-echo "$SEQ" > "$SEQ_FILE"; echo "$TIP" > "$PREV_FILE"
+# 注意：PREV_STATE_HASH 记录的是 tree hash 而非 commit hash——
+# git am 跨机重放会改写 committer 身份/时间，commit hash 跨机不可比，tree 才可比
+echo "$SEQ" > "$SEQ_FILE"; echo "$TREE" > "$PREV_FILE"
 PKG_SHA="$(sha256sum "$PKG_ARC" | cut -d' ' -f1)"
 log "包路径: $PKG_ARC"
 log "类型: $TYPE  序号: $SEQ  包体SHA256: $PKG_SHA"
