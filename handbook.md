@@ -9,7 +9,7 @@
 - 所有场景 spec 先行（spec-coding 不变）；
 - AI 的每个写操作（合 main、删分支、打 tag）必须先汇报"实测通过 + diff 校验为空"，人确认后才执行；
 - **人对 AI 下指令时带上技能名**（如"按 feat-workflow ……"），这是触发正确操作规范的方式。前提是 `AGENTS.md` 已放在仓库根目录并被 agent 自动加载——新会话首次使用或不确定加载与否时，第一句话先说："**先读 AGENTS.md**"；
-- 人需要动手的环境动作只有三种：拷包、解压执行 `import.sh`、在 latest 上实测；
+- 人需要动手的环境动作只有三种：拷包、解压并执行 `import.sh`、在 latest 上实测——具体是：zip 拷到内网仓库一级目录 → 右键"解压到当前位置" → Git Bash 执行 `./import.sh`（零配置，成功后自动清理包文件）；
 - 执行 `import.sh` 时本地仓库处于任何分支都可以——脚本自带现场保护与恢复，不需要先切分支；
 - 内网执行环境是 Windows 个人电脑 + Git Bash，装了 git 即可，无需 jq 等任何其他工具（临时工作区用 `mktemp -d`，Git Bash 自动映射到 Windows 临时目录）；
 - Windows 两个已知坑：路径过长报错 → 执行一次 `git config --global core.longpaths true`；清理工作区失败 → 多半是文件被编辑器/杀软占用，关闭后 `git worktree prune` 清理即可。
@@ -27,12 +27,12 @@
 
 1. 对 AI 说："**按 feat-workflow 开发新需求：……（需求描述），先出 spec**"；
 2. 审 spec：拆分粒度（≤3~5 天/单元）、触及模块声明、"部署影响"一节；
-3. 对 AI 说："**按 sync-package 出 sync 包**" → 拷包入内网 → 解压执行 `import.sh`；
+3. 对 AI 说："**按 sync-package 出 sync 包**" → 拷 zip 到内网仓库一级目录 → "解压到当前位置" → Git Bash 执行 `./import.sh`（零配置）；
 4. 若脚本提示 configImpact 待办 → 追加 `[config]` commit 后重新部署 latest；
 5. latest 实测：有问题 → 带完整日志对 AI 说"**按 iteration-round 继续改，别换分支**"，回到第 3 步；
 6. 通过 → 对 AI 说："**实测通过，按 merge-and-close 收尾，先汇报等我确认**"；
 7. 看 AI 汇报（实测通过 + diff 为空 + 拟写的 commit message）→ 确认；
-8. 拷 close 包入内网执行 `import.sh` → 确认对账通过。完成。
+8. 拷 close 包入内网仓库一级目录，同样"解压到当前位置"后执行 → 确认对账通过。完成。
 
 **修 bug**
 
@@ -88,7 +88,7 @@
 3. 【AI】从最新 main 建 `feat/<功能>` 并推送（技能：feat-workflow）；
 4. 【AI】开发，本地检查全绿（技能：feat-workflow）；
 5. 【人】对 AI 说："**按 sync-package 出 sync 包**" → 【AI】出包并原样转述脚本输出（技能：sync-package）；
-6. 【人】拷包入内网，解压，执行 `import.sh`；
+6. 【人】拷 zip 到内网仓库一级目录，"解压到当前位置"，执行 `import.sh`（零配置）；
 7. 【脚本】自动建/更新内网同名分支 → 校验 → 触发 latest 部署；若有 configImpact 待办 → 【人】据待办在内网分支追加 `[config]` commit 后重新部署；
 8. 【人】在 latest 实测：
    - 有问题 → 转场景 3（迭代轮）；
@@ -96,7 +96,7 @@
 9. 【人】对 AI 说："**再 merge 一次 main，有变化就再出一版包**" → 【AI】merge 并按需重新出包（技能：feat-workflow → sync-package）；若有新合入，重复步骤 6~8 一轮；
 10. 【人】对 AI 说："**实测通过，按 merge-and-close 收尾，先汇报等我确认**"；
 11. 【AI】最后校验并汇报"实测通过 + diff 为空 + 拟写的 commit message"（技能：merge-and-close）→【人】确认 →【AI】squash 合入外网 main → push → 删外网 feat 分支 → 出 close 包（技能：merge-and-close → sync-package）；
-12. 【人】拷 close 包入内网，执行 `import.sh`；
+12. 【人】拷 close 包入内网仓库一级目录，解压执行 `import.sh`；
 13. 【脚本】内网同名分支合入内网 main → 对账 → 删内网分支 → 输出结果；
 14. 【人】确认对账通过；【AI】更新 spec 状态为"已合入"。
 

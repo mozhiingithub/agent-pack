@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# export_package.sh — 同步包生成脚本（参考骨架 v3，无 jq 依赖，Git Bash 兼容）
+# export_package.sh — 同步包生成脚本（参考骨架 v4，无 jq 依赖，Git Bash 兼容）
 # 用法: tools/export_package.sh <branch> <sync|close>
 #
 # 结构约定：【固定区】流程顺序、校验点、git 命令、退出码、日志格式 —— 不得修改；
 #          【可变区】项目路径、提取细节 —— 可按项目实现，接口与输出格式不变。
-# v3 修订：分支名含 / 转义（SAFE_BRANCH）；保护路径检查统一 core.quotePath=false
-#          （非 ASCII 文件名不可绕过）；ls-remote 走 safe-git.sh（重试/代理）；
-#          configImpact 归一化（"无"视为无影响）。
+# v4 修订：默认 zip 打包（文件平铺在包根，内网“解压到当前位置”即可用）；
+#          import.sh 零配置自动定位仓库，执行人无需编辑任何脚本。
 
 set -euo pipefail
 
@@ -26,6 +25,7 @@ OUT_DIR="outbox"
 PROTECTED_PATH="deploy-intranet/"      # 保护路径，硬阻断
 CHECKS_OK=".checks-ok"                 # 本地检查通过标记（24h 内有效）
 IMPORT_TEMPLATE="tools/templates/import.sh"
+ARCHIVE_FMT="zip"                      # zip（推荐，Windows 资源管理器可直接解压）或 tar
 
 # ================= 固定区 2：前置校验（任一不过即失败，无豁免参数）=====
 [ -z "$(git status --porcelain)" ]            || die "工作区不干净"
@@ -108,11 +108,20 @@ if [ -n "$IMPACT" ]; then printf '%s\n' "$IMPACT" > "$PKG/configImpact.txt"; fi
 cp "$IMPORT_TEMPLATE" "$PKG/import.sh"; chmod +x "$PKG/import.sh"
 
 # ================= 固定区 7：确定性打包、落账、汇报 =================
-tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf "$PKG.tar" -C "$PKG" .
-# 可变区 3：若规定用 zip，替换为排序 + zip -X，原则（可复现）不变
+# zip 内容平铺在包根（无外层目录），配合内网“解压到当前位置”约定
+if [ "$ARCHIVE_FMT" = "zip" ]; then
+  command -v zip >/dev/null || die "需要 zip 命令（或将可变区 ARCHIVE_FMT 改为 tar）"
+  find "$PKG" -exec touch -d @0 {} +    # mtime 置零，包体可复现
+  PKG_ABS="$(cd "$PKG" && pwd)"
+  ( cd "$PKG" && find . -print | LC_ALL=C sort | TZ=UTC zip -X -q "$PKG_ABS.zip" -@ )
+  PKG_ARC="$PKG.zip"
+else
+  tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf "$PKG.tar" -C "$PKG" .
+  PKG_ARC="$PKG.tar"
+fi
 echo "$SEQ" > "$SEQ_FILE"; echo "$TIP" > "$PREV_FILE"
-PKG_SHA="$(sha256sum "$PKG.tar" | cut -d' ' -f1)"
-log "包路径: $PKG.tar"
+PKG_SHA="$(sha256sum "$PKG_ARC" | cut -d' ' -f1)"
+log "包路径: $PKG_ARC"
 log "类型: $TYPE  序号: $SEQ  包体SHA256: $PKG_SHA"
 [ -n "$IMPACT" ] && log "注意：含 configImpact，内网需追加 [config] commit"
 exit 0

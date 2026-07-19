@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# import.sh — 内网同步包导入脚本（参考骨架 v4，Windows Git Bash 可用，无 jq 依赖）
-# 用法: 在 Git Bash 中执行 ./import.sh（零参数，自读同目录 manifest.sh）
+# import.sh — 内网同步包导入脚本（参考骨架 v6，Windows Git Bash 可用，无 jq 依赖）
+# 用法: ① 把 zip 拷到内网仓库一级目录；② 右键“解压到当前位置”；
+#       ③ Git Bash 执行 ./import.sh —— 零参数、零配置，成功后自动清理包文件。
 #
 # 环境约定：内网执行机是 Windows 个人电脑 + Git Bash，只装了 git。
 #          脚本只依赖 git 与基础 bash 命令；内容校验一律用 git 对象 hash
 #          （blob/tree），天然免疫 Windows 换行符（CRLF）差异。
 # 网络约定：重试逻辑内置于本脚本（与 tools/safe-git.sh 同源模板）——
 #          同步包必须自包含，不依赖内网仓库里是否已有 tools/（首包引导）。
-#          失败即还原，恢复后重新执行本包（幂等），故无需 outbox。
+#          失败即还原并保留包文件，恢复后重新执行本包（幂等），故无需 outbox。
 # 结构约定：【固定区】不得修改；【可变区】按内网环境实现，接口不变。
 
 set -euo pipefail
@@ -16,10 +17,16 @@ log() { printf '[import] %s %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { echo "[import] ERROR: $*" >&2; exit 1; }
 
 # ================= 可变区 1：内网环境约定 =================
-REPO="$HOME/repos/project"           # 内网仓库路径
 MAIN_BRANCH="main"
 PROTECTED_PATH="deploy-intranet/"
 DEPLOY_TRIGGER=""                    # latest 部署触发命令；空则只打印待办
+
+# ================= 固定区 0：定位仓库（零配置，无需编辑脚本） ============
+# 约定：包解压到内网仓库一级目录（或仓库内任意位置），脚本向上找 .git 自动定位。
+# 例外：包在仓库外时，用环境变量 IMPORT_REPO 显式指定。
+REPO="${IMPORT_REPO:-$(git -C "$PKG_DIR" rev-parse --show-toplevel 2>/dev/null || true)}"
+[ -n "$REPO" ] || die "未定位内网仓库：请把本包解压到内网仓库目录内再执行（或用 IMPORT_REPO=/path 指定）"
+log "内网仓库: $REPO"
 
 # ================= 固定区 1：网络出口（内置重试，本脚本唯一联网通道）======
 BACKOFFS=(5 15 45 120 300)
@@ -50,7 +57,7 @@ net() {
 }
 
 # ================= 固定区 2：读取并校验 manifest =================
-[ -f "$PKG_DIR/manifest.sh" ] || die "缺少 manifest.sh"
+[ -f "$PKG_DIR/manifest.sh" ] || die "缺少 manifest.sh（若已成功执行过，包文件已被自动清理）"
 source "$PKG_DIR/manifest.sh"
 [ "${SCHEMA_VERSION:-}" = "1" ] || die "未知 SCHEMA_VERSION，拒收"
 : "${TYPE:?缺字段 TYPE}" "${BRANCH:?缺字段 BRANCH}" "${SEQ:?缺字段 SEQ}" \
@@ -147,4 +154,10 @@ esac
 # ================= 固定区 7：成功收尾 =================
 log "完成：$TYPE $BRANCH ($COMMIT_HASH)"
 if [ -n "$DEPLOY_TRIGGER" ]; then "$DEPLOY_TRIGGER"; else log "下一步：触发 latest 部署"; fi
+
+# ================= 固定区 8：清理包文件（仅成功后；失败保留以便重跑）======
+rm -rf "$PKG_DIR/payload"
+rm -f "$PKG_DIR/manifest.sh" "$PKG_DIR/message.txt" "$PKG_DIR/files.txt" "$PKG_DIR/configImpact.txt"
+log "包文件已清理。"
+rm -f "$0" 2>/dev/null || true   # 自删除；Windows 文件占用时残留可手动删除
 exit 0
