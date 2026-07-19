@@ -48,6 +48,7 @@ bash agent-pack/templates/bootstrap.sh <项目仓库根目录>
 其余适配要点：
 
 - 分支 ↔ spec 映射：`feat|fix/<名>` ↔ `docs/exec-plans/active/<名>.md`（见 `templates/export_package.sh` 可变区 `SPEC_FILE`）；执行计划是干活用的 spec；
+- spec 两层：**新需求先 product-spec 后 exec-plan**，exec-plan 须注明来源需求；fix 类只写 exec-plan（四要素），不需要 product-spec；
 - spec 状态：用 `active/` ↔ `completed/` 目录移动表达，合入 main 后由 merge-and-close 流程 `git mv` 归档，比状态字段更清爽；
 - 接口契约集中在 `docs/design-docs/`，双方 agent 必读；
 - 需求层（`docs/product-specs/`）与执行层（exec-plans）一对多：一个大需求拆成多个执行计划，正好对应"功能拆小单元分批合入"；

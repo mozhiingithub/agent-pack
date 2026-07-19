@@ -26,8 +26,8 @@
 
 **新功能**
 
-1. 对 AI 说："**按 feat-workflow 开发新需求：……（需求描述），先出 spec**"；
-2. 审 spec：拆分粒度（≤3~5 天/单元）、触及模块声明、"部署影响"一节；
+1. 对 AI 说："**按 feat-workflow 开发新需求：……（需求描述），先出 product-spec 和 exec-plan**"；
+2. 审两层 spec：product-spec（需求边界、拆分是否合理）→ exec-plan（粒度 ≤3~5 天/单元、来源需求、触及模块声明、"部署影响"一节）；
 3. 对 AI 说："**按 sync-package 出 sync 包**" → 拷 zip 到内网仓库一级目录 → "解压到当前位置" → Git Bash 执行 `./import.sh`（零配置）；
 4. 若脚本提示 configImpact 待办 → 追加 `[config]` commit 后重新部署 latest；
 5. latest 实测：有问题 → 带完整日志对 AI 说"**按 iteration-round 继续改，别换分支**"，回到第 3 步；
@@ -84,8 +84,8 @@
 
 启动：【人】对 AI 说："**按 feat-workflow 开发新需求：……（需求描述），先出 spec。**"
 
-1. 【AI】产出 spec（技能：feat-workflow），必须含：触及的既有模块、"部署影响"一节；
-2. 【人】审 spec：拆分成 ≤3~5 天可独立交付的单元，一个单元一条分支；
+1. 【AI】产出两层 spec（技能：feat-workflow）：product-spec（需求边界与拆分）+ exec-plan（注明来源需求、触及的既有模块、"部署影响"一节）；
+2. 【人】审两层 spec：拆分成 ≤3~5 天可独立交付的单元，一个单元一条分支；
 3. 【AI】从最新 main 建 `feat/<功能>` 并推送（技能：feat-workflow）；
 4. 【AI】开发，本地检查全绿（技能：feat-workflow）；
 5. 【人】对 AI 说："**按 sync-package 出 sync 包**" → 【AI】出包并原样转述脚本输出（技能：sync-package）；
