@@ -12,7 +12,7 @@
 - 人需要动手的环境动作只有三种：拷包、解压并执行 `import.sh`、在 latest 上实测——具体是：zip 拷到内网仓库一级目录 → 右键"解压到当前位置" → Git Bash 执行 `./import.sh`（零配置，成功后自动清理包文件）；
 - 执行 `import.sh` 时本地仓库处于任何分支都可以——脚本自带现场保护与恢复，不需要先切分支；
 - 内网执行环境是 Windows 个人电脑 + Git Bash，装了 git 即可，无需 jq 等任何其他工具（临时工作区用 `mktemp -d`，Git Bash 自动映射到 Windows 临时目录）；
-- 内网仓库 remote 一律用 SSH（`git@gitee.com:...`），https 无凭据帮手时推送必挂；
+- 内网仓库 remote 用 SSH 或 https 均可，但必须配好对应协议的免密凭据（SSH key，或 https 的 credential helper/PAT）；未配置时推送会失败——脚本会快速报错提示，不会挂起；
 - Windows 两个已知坑：路径过长报错 → 执行一次 `git config --global core.longpaths true`；清理工作区失败 → 多半是文件被编辑器/杀软占用，关闭后 `git worktree prune` 清理即可。
 
 ---
