@@ -29,7 +29,7 @@
 | brainstorming / writing-plans / executing-plans / test-driven-development / systematic-debugging / verification-before-completion | **保留** | 与双工机制同构，已 vendor 进 agent-pack；只需把"问用户"类交互改为批量提问，产物落位沿用现有规则 |
 | finishing-a-development-branch | **弃用，以 merge-and-close 替代** | 其"push 建 PR、四选项"假设在线 GitHub 与单人连续执行；双工收尾必须是 squash + 人确认 + close 包 |
 | using-git-worktrees | **保留但降级为参考** | import.sh 已内建 worktree 契约；该技能可用于 agent 本地开发隔离，不与内网流程叠加 |
-| subagent-driven-development | **弃用（拓扑冲突）** | 同会话派 implementer、连续执行不问人，与"开发/修复各一个独立 agent + 人确认写操作"冲突 |
+| subagent-driven-development | **采用（线内执行引擎）** | 双工管线间关系，SDD 管线内执行：开发/修复 agent 各自作为 controller 派 implementer/reviewer 子代理完成自己分支的任务，不违反分支纪律。边界改造：终点接 merge-and-close（人确认 + close 包）而非 finishing；出包/推送走 sync-package 与 tools/；"连续执行不问人"仅限已批准 exec-plan 的任务段，spec 批准与合 main 仍需人确认；模型分级退化为建议 |
 | dispatching-parallel-agents | **改造为只读并行调查** | 与"一个分支同一时刻只有一方在改"冲突；保留其独立失败域调查用法，禁止并行改码 |
 | requesting-code-review / receiving-code-review | **保留（第二阶段再启用）** | 可改造成跨 agent 互审协议（review-package 随同步包走），首轮迁移不启用 |
 | writing-skills / using-superpowers | **保留** | 体系元技能，无冲突 |
