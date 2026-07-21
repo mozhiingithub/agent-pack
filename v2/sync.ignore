@@ -1,0 +1,7 @@
+# 忽略清单：内网专属、不与外网全量包同步的路径（每行一条）
+# 目录以 / 结尾（前缀匹配）；其余为仓库相对路径或文件名 glob
+deploy-intranet/
+.sync-state/
+outbox/
+data/
+*.log
