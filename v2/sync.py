@@ -116,26 +116,31 @@ def main():
 
     tool_dir = Path(__file__).resolve().parent
 
-    # ---------- 定位仓库 ----------
-    if args.repo:
-        repo = Path(args.repo).resolve()
-        (repo / ".git").is_dir() or die(f"不是 git 仓库: {repo}")
-    else:
-        cands = [d for d in tool_dir.iterdir() if d.is_dir() and (d / ".git").exists()]
-        if len(cands) != 1:
-            die("同级目录下 git 仓库不唯一或不存在，请用 --repo 指定: "
-                + (", ".join(d.name for d in cands) or "无候选"))
-        repo = cands[0]
-    log(f"内网仓库: {repo}")
-
     # ---------- 参数文件与忽略清单 ----------
     main_branch = "main"
+    repo_name = None
     inifile = tool_dir / "sync.ini"
     if inifile.exists() and configparser:
         ini = configparser.ConfigParser()
         ini.read(inifile, encoding="utf-8")
         main_branch = ini.get("sync", "main_branch", fallback="main")
+        repo_name = ini.get("sync", "repo", fallback=None) or None
     pats = load_ignore(tool_dir / "sync.ignore")
+
+    # ---------- 定位仓库：--repo > sync.ini repo 项 > 自动识别（唯一时） ----------
+    if args.repo:
+        repo = Path(args.repo).resolve()
+        (repo / ".git").is_dir() or die(f"不是 git 仓库: {repo}")
+    elif repo_name:
+        repo = (tool_dir / repo_name).resolve()
+        (repo / ".git").is_dir() or die(f"sync.ini 指定的 repo 不存在或不是 git 仓库: {repo}")
+    else:
+        cands = [d for d in tool_dir.iterdir() if d.is_dir() and (d / ".git").exists()]
+        if len(cands) != 1:
+            die("同级目录下 git 仓库不唯一或不存在：请在 sync.ini 的 repo 项指定，或用 --repo。候选: "
+                + (", ".join(d.name for d in cands) or "无候选"))
+        repo = cands[0]
+    log(f"内网仓库: {repo}")
     log(f"主分支: {main_branch}；忽略规则 {len(pats)} 条")
 
     zipsrc = Path(args.zipfile).resolve()

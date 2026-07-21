@@ -73,8 +73,11 @@ python3 sync.py <zip文件> --branch <分支名> --message "变更描述" [--bas
 
 ```ini
 [sync]
-main_branch = main
+main_branch = main        # 新建分支时未指定 --base 的默认基线
+repo = agent-pack-test    # 目标仓库目录名：同级有多个 git 仓库时必填
 ```
+
+仓库定位优先级：`--repo` 参数 > `sync.ini` 的 `repo` 项 > 自动识别（同级仅一个仓库时）。
 
 `sync.ignore`（忽略清单，按需增删）：
 
