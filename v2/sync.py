@@ -87,12 +87,21 @@ def collect_protected(repo, pats):
                 found.add(direct)
             else:
                 for hit in repo.rglob("*"):
-                    if hit.name == ".git":
+                    if ".git" in hit.parts:
                         continue
                     rel = hit.relative_to(repo).as_posix()
                     if fnmatch.fnmatch(rel, p):
                         found.add(hit)
     return found
+
+
+def git_ignored(repo):
+    """仓库 .gitignore 覆盖的本地未跟踪路径（用 git 自己的引擎，语义不走样）。"""
+    r = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard",
+            "--directory", "-z")
+    if not r.stdout:
+        return set()
+    return {repo / p.rstrip("/") for p in r.stdout.split("\0") if p}
 
 
 def main():
@@ -172,32 +181,31 @@ def main():
             execs = {i.filename[len(prefix):] for i in infos
                      if i.filename.startswith(prefix) and (i.external_attr >> 16) & 0o111}
 
-            # ---------- 保护忽略项：暂存到临时区 ----------
-            protected_dir = td / ".protected"
-            protected_dir.mkdir()
-            for item in collect_protected(repo, pats):
-                rel = item.relative_to(repo)
-                dst = protected_dir / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                if item.is_dir():
-                    shutil.copytree(item, dst)
-                else:
-                    shutil.copy2(item, dst)
+            # ---------- 保护集合：sync.ignore ∪ 仓库 .gitignore ----------
+            protected = {p.resolve() for p in (collect_protected(repo, pats) | git_ignored(repo))}
+            log(f"保护路径 {len(protected)} 个（sync.ignore + 仓库 .gitignore）")
 
-            # ---------- 完整覆盖：清空（除 .git 与忽略项）→ 复制 ----------
-            for entry in repo.iterdir():
-                if entry.name in (".git",) or is_ignored(entry.relative_to(repo).as_posix(), pats):
+            def is_protected(path):
+                rp = path.resolve()
+                return any(rp == pr or pr in rp.parents for pr in protected)
+
+            # ---------- 完整覆盖：按保护集合逐文件删除（除 .git）→ 复制 ----------
+            for entry in sorted(repo.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+                if ".git" in entry.parts or is_protected(entry):
                     continue
-                if entry.is_dir():
-                    shutil.rmtree(entry)
-                else:
+                if entry.is_file() or entry.is_symlink():
                     entry.unlink()
+                elif entry.is_dir():
+                    try:
+                        entry.rmdir()  # 仅删已清空的目录；含保护内容的目录自动保留
+                    except OSError:
+                        pass
             copied = 0
             for f in src.rglob("*"):
                 if f.is_dir():
                     continue
                 rel = f.relative_to(src).as_posix()
-                if rel.startswith(".protected") or is_ignored(rel, pats):
+                if is_ignored(rel, pats) or is_protected(repo / rel):
                     continue
                 dst = repo / rel
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -206,17 +214,11 @@ def main():
                     dst.chmod(0o755)
                 copied += 1
 
-            # ---------- 恢复忽略项（防御：外网包不含它们，此处仅兜底） ----------
-            for item in protected_dir.rglob("*"):
-                if item.is_dir():
-                    continue
-                rel = item.relative_to(protected_dir)
-                dst = repo / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, dst)
-
         # ---------- 提交 ----------
         git(repo, "add", "-A")
+        # 防呆：若全量包缺 .gitignore（不规范包），被忽略的本地产物会被 add -A 纳入，逐一出栈
+        for pr in protected:
+            git(repo, "reset", "-q", "--", str(pr.relative_to(repo)), check=False)
         if not out(repo, "diff", "--cached", "--shortstat"):
             log("无内容变更，无需提交（分支已与全量包一致）")
         else:
