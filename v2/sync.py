@@ -20,12 +20,19 @@ v2 同步工具：GitHub 全量 zip → 内网仓库分支完整覆盖
 """
 import argparse
 import fnmatch
+import io
 import shutil
 import subprocess
 import sys
 import tempfile
 import zipfile
 from pathlib import Path
+
+# Windows 中文区域（GBK）下：subprocess 若用 text=True 会按 GBK 解码 git 的 UTF-8 输出而崩溃。
+# 统一改为手动 UTF-8 解码（errors="replace"），并把脚本自身输出固定为 UTF-8。
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 try:
     import configparser
@@ -43,7 +50,10 @@ def log(msg):
 
 
 def git(repo, *args, check=True):
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True)
+    stdout = r.stdout.decode("utf-8", errors="replace") if r.stdout else ""
+    stderr = r.stderr.decode("utf-8", errors="replace") if r.stderr else ""
+    r = subprocess.CompletedProcess(r.args, r.returncode, stdout, stderr)
     if check and r.returncode != 0:
         die(f"git {' '.join(args)} 失败: {r.stderr.strip()}")
     return r
