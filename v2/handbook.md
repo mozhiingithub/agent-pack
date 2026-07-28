@@ -67,6 +67,7 @@ python3 sync.py <zip文件> --branch <分支名> --message "变更描述" [--bas
 - `--message`：一句话变更描述，写入内网 commit（格式 `[sync] <分支>: <描述>`）；
 - `--push`：完成后推送到 origin（可省，推送本就由人负责）；
 - 行为：完整覆盖目标分支（zip 里没有的文件会被**删除**），`sync.ignore` 中的路径一律不动；**仓库自身的 `.gitignore` 也会自动遵守**（用 git 引擎判定，本地产物如 node_modules、data 等不会被删除或误提交）——所以 `sync.ignore` 只需声明"内网特有且被 git 跟踪"的内容（如 `deploy-intranet/`）；幂等——同包重跑报告"无内容变更"；
+- 安全网：**提交前强制完整性校验**（zip 清单与磁盘逐文件比对，缺失或大小不符即报出文件名）；**崩溃自动还原**（复制中断时恢复现场且保留保护路径，可直接重跑）；Windows 长路径（>260）自动走 `\\?\` 前缀；
 - 前置要求：内网工作区干净、已配置 git 提交者身份、本机有 `python3`（Windows Git Bash 若无，用 `py -3` 或安装 Python）。
 
 `sync.ini`（参数文件）：

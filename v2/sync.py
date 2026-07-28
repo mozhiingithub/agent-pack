@@ -21,6 +21,7 @@ v2 同步工具：GitHub 全量 zip → 内网仓库分支完整覆盖
 import argparse
 import fnmatch
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -198,42 +199,79 @@ def main():
 
             # ---------- 保护集合：sync.ignore ∪ 仓库 .gitignore ----------
             protected = {p.resolve() for p in (collect_protected(repo, pats) | git_ignored(repo))}
+            protected_rels = sorted({p.relative_to(repo).as_posix() for p in protected})
             log(f"保护路径 {len(protected)} 个（sync.ignore + 仓库 .gitignore）")
 
             def is_protected(path):
                 rp = path.resolve()
                 return any(rp == pr or pr in rp.parents for pr in protected)
 
-            # ---------- 完整覆盖：按保护集合逐文件删除（除 .git）→ 复制 ----------
-            for entry in sorted(repo.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-                if ".git" in entry.parts or is_protected(entry):
-                    continue
-                if entry.is_file() or entry.is_symlink():
-                    entry.unlink()
-                elif entry.is_dir():
-                    try:
-                        entry.rmdir()  # 仅删已清空的目录；含保护内容的目录自动保留
-                    except OSError:
-                        pass
-            copied = 0
-            for f in src.rglob("*"):
-                if f.is_dir():
-                    continue
-                rel = f.relative_to(src).as_posix()
-                if is_ignored(rel, pats) or is_protected(repo / rel):
-                    continue
-                dst = repo / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(f, dst)
-                if rel in execs:
-                    dst.chmod(0o755)
-                copied += 1
+            # Windows 长路径兜底：\\?\ 前缀突破 MAX_PATH=260 限制（长路径会静默中断复制）
+            def fp(path):
+                s = str(path)
+                return ("\\\\?\\" + s) if sys.platform == "win32" else s
 
-        # ---------- 提交 ----------
+            # 去掉被父目录覆盖的子项，减少 git 参数数量
+            excludes = [r for i, r in enumerate(protected_rels)
+                        if not any(r.startswith(o + "/") for o in protected_rels[:i])]
+
+            try:
+                # ---------- 完整覆盖：按保护集合逐文件删除（除 .git） ----------
+                for entry in sorted(repo.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+                    if ".git" in entry.parts or is_protected(entry):
+                        continue
+                    if entry.is_file() or entry.is_symlink():
+                        os.remove(fp(entry))
+                    elif entry.is_dir():
+                        try:
+                            os.rmdir(fp(entry))  # 仅删已清空的目录；含保护内容的目录自动保留
+                        except OSError:
+                            pass
+                # ---------- 复制 ----------
+                copied = 0
+                for f in src.rglob("*"):
+                    if f.is_dir():
+                        continue
+                    rel = f.relative_to(src).as_posix()
+                    if rel == "pkg.zip" or is_ignored(rel, pats) or is_protected(repo / rel):
+                        continue
+                    dst = repo / rel
+                    os.makedirs(fp(dst.parent), exist_ok=True)
+                    shutil.copy2(fp(f), fp(dst))
+                    if rel in execs:
+                        dst.chmod(0o755)
+                    copied += 1
+                # ---------- 完整性校验：zip 清单必须全部落盘且大小一致 ----------
+                expected = {}
+                for i in infos:
+                    if i.is_dir():
+                        continue
+                    rel_i = i.filename[len(prefix):] if prefix and i.filename.startswith(prefix) else i.filename
+                    if not rel_i or rel_i == "pkg.zip" or is_ignored(rel_i, pats) or is_protected(repo / rel_i):
+                        continue
+                    expected[rel_i] = i.file_size
+                missing = [r for r in expected if not (repo / r).is_file()]
+                badsize = [r for r in expected
+                           if (repo / r).is_file() and (repo / r).stat().st_size != expected[r]]
+                if missing or badsize:
+                    raise RuntimeError(
+                        f"复制不完整：缺失 {len(missing)} 个 {missing[:5]}；大小不符 {len(badsize)} 个 {badsize[:5]}")
+            except SystemExit:
+                raise
+            except Exception as e:
+                # 崩溃自愈：还原到执行前状态（保留保护路径），保证可安全重跑
+                log(f"同步过程中断（{type(e).__name__}: {e}），正在还原现场…")
+                git(repo, "reset", "--hard", "HEAD", check=False)
+                clean_args = ["clean", "-fd"]
+                for r_ in excludes:
+                    clean_args += ["-e", r_]
+                git(repo, *clean_args, check=False)
+                die(f"已还原到执行前状态，现场干净可重跑。原始错误：{type(e).__name__}: {e}")
+
+        # ---------- 提交（add -A 后把保护路径逐一出栈：它们只许留在本地，不进暂存） ----------
         git(repo, "add", "-A")
-        # 防呆：若全量包缺 .gitignore（不规范包），被忽略的本地产物会被 add -A 纳入，逐一出栈
-        for pr in protected:
-            git(repo, "reset", "-q", "--", str(pr.relative_to(repo)), check=False)
+        if excludes:
+            git(repo, "reset", "-q", "--", *excludes, check=False)
         if not out(repo, "diff", "--cached", "--shortstat"):
             log("无内容变更，无需提交（分支已与全量包一致）")
         else:
