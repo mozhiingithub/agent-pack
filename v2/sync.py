@@ -107,12 +107,37 @@ def collect_protected(repo, pats):
 
 
 def git_ignored(repo):
-    """仓库 .gitignore 覆盖的本地未跟踪路径（用 git 自己的引擎，语义不走样）。"""
-    r = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard",
-            "--directory", "-z")
-    if not r.stdout:
+    """仓库 .gitignore 覆盖的"锚点"路径：被忽略文件向上找自身也被忽略的最顶层祖先目录。
+
+    关键区分两种目录：
+    - 目录自身命中 ignore 规则（如 node_modules/）→ 整目录保护；
+    - 目录只是恰好只装着被忽略内容（如只剩 __pycache__ 的 D/）→ 只保护其中的 __pycache__，
+      不能保护 D 本身，否则 zip 中 D 的新文件会被永远跳过（曾导致目录遗失的实际根因）。
+    """
+    r = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "-z")
+    files = [p for p in r.stdout.split("\0") if p]
+    if not files:
         return set()
-    return {repo / p.rstrip("/") for p in r.stdout.split("\0") if p}
+    # 收集所有候选祖先目录，批量问 git：哪些目录自身被忽略
+    dirs = set()
+    for f in files:
+        parts = Path(f).parts
+        for i in range(1, len(parts)):
+            dirs.add("/".join(parts[:i]))
+    r2 = subprocess.run(["git", "-C", str(repo), "check-ignore", "-z", "--stdin"],
+                        input="\0".join(dirs).encode("utf-8"), capture_output=True)
+    ignored_dirs = set(r2.stdout.decode("utf-8", errors="replace").split("\0")) if r2.stdout else set()
+    anchors = set()
+    for f in files:
+        parts = Path(f).parts
+        anchor = f
+        for i in range(1, len(parts)):
+            cand = "/".join(parts[:i])
+            if cand in ignored_dirs:
+                anchor = cand
+                break
+        anchors.add(repo / anchor)
+    return anchors
 
 
 def main():
